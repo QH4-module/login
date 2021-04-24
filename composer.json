@@ -1,0 +1,13 @@
+{
+    "name": "qh4/login",
+    "description": "登录模块",
+    "authors": [
+        {
+            "name": "hyunsu",
+            "email": "hyunsu@foxmail.com"
+        }
+    ],
+    "require": {},
+    "license": "MIT",
+    "minimum-stability": "dev"
+}
