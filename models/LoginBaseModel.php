@@ -27,6 +27,17 @@ use qttx\web\ServiceModel;
  */
 class LoginBaseModel extends ServiceModel
 {
+    /**
+     * @var string 接收参数,设备类型,该参数根据业务自定义,非必须
+     * 设备类型和设备号对登录无影响,设备类型和设备号共同影响失败次数
+     * @see ExtLogin::max_login_fail_num 关于失败次数
+     */
+    public $device_type = '';
+
+    /**
+     * @var string 接收参数,设备号,非必须
+     */
+    public $device_id = '';
 
     /**
      * @var ExtLogin
@@ -37,6 +48,30 @@ class LoginBaseModel extends ServiceModel
      * @var array 根据用户输入找到的用户
      */
     protected $result_user;
+
+
+    /**
+     * {@inheritDoc}
+     */
+    public function rules()
+    {
+        return $this->mergeRules([
+            [['device_type'], 'in', 'range' => $this->external->device_type_limit],
+            [['device_id'], 'string', 'max' => 200],
+        ], $this->external->rules());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function attributeLangs()
+    {
+        return $this->mergeLanguages([
+            'device_type' => '设备类型',
+            'device_id' => '设备编号',
+        ],$this->external->attributeLangs());
+    }
+
 
     /**
      * 获取用户输入最后一次登录信息
@@ -142,6 +177,31 @@ class LoginBaseModel extends ServiceModel
         ]);
     }
 
+    /**
+     * 检查失败次数
+     * @param $db
+     * @param $input
+     * @param string $device_type
+     * @param string $device_id
+     * @return int
+     */
+    protected function checkFailNum($db, $input, $device_type = '', $device_id = '')
+    {
+        $last_input = self::getLastInputLoginHistory($db, $input);
+        $last_ip = self::getLastIpLoginHistory($db, $this->external->getClientIp());
+        if (!empty($device_id) && !empty($device_type)) {
+            $last_device = self::getLastDeviceLoginHistory($db, $device_type, $device_id);
+        } else {
+            $last_device = [];
+        }
+
+        $input_fail_num = empty($last_input) ? 1 : $last_input['input_fail_num'];
+        $ip_fail_num = empty($last_ip) ? 1 : $last_ip['ip_fail_num'];
+        $device_fail_num = empty($last_device) ? 1 : $last_device['device_fail_num'];
+
+        return max($input_fail_num, $ip_fail_num, $device_fail_num);
+    }
+
 
     /**
      * 登录失败处理
@@ -149,7 +209,7 @@ class LoginBaseModel extends ServiceModel
      * @param $input
      * @param string $device_type
      * @param string $device_id
-     * @return bool 是否达到失败上限
+     * @return int 失败次数
      */
     protected function loginFail($db, $input, $device_type = '', $device_id = '')
     {
@@ -181,13 +241,6 @@ class LoginBaseModel extends ServiceModel
             'device_fail_num' => $device_fail_num,
         ]);
 
-        // 检查是否达到失败上限
-        if ($this->external->max_login_fail_num > 0) {
-            if ($input_fail_num > $this->external->max_login_fail_num || $ip_fail_num > $this->external->max_login_fail_num || $device_fail_num > $this->external->max_login_fail_num) {
-                return true;
-            }
-        }
-
-        return false;
+        return max($input_fail_num, $ip_fail_num, $device_fail_num);
     }
 }

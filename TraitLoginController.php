@@ -17,6 +17,7 @@ namespace qh4module\login;
 
 
 use qh4module\login\external\ExtLogin;
+use qh4module\login\models\MobileLoginModel;
 use qh4module\login\models\PasswordLoginModel;
 use qh4module\token\HpToken;
 
@@ -51,6 +52,19 @@ trait TraitLoginController
     public function actionLoginByPassword()
     {
         $model = new PasswordLoginModel([
+            'external' => $this->ext_login()
+        ]);
+
+        return $this->runModel($model);
+    }
+
+    /**
+     * 通过手机号和验证码登录
+     * @return array
+     */
+    public function actionLoginByMobile()
+    {
+        $model = new MobileLoginModel([
             'external' => $this->ext_login()
         ]);
 

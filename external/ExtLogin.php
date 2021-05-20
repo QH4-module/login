@@ -18,6 +18,7 @@ namespace qh4module\login\external;
 
 use qh4module\token\JWT;
 use qttx\components\request\Request;
+use qttx\exceptions\Exception;
 use qttx\web\External;
 use qttx\web\ServiceModel;
 
@@ -38,7 +39,7 @@ class ExtLogin extends External
      * 3种失败不论哪个达到最大次数,都会触发 `maxLoginFailHandle()` 函数,并且不触发 `loginFailHandle()` 函数
      * 0 表示不限制失败次数
      */
-    public $max_login_fail_num = 8;
+    public $max_login_fail_num = 0;
 
     /**
      * @var string[] 设备类型限制,根据业务重写该属性
@@ -49,6 +50,24 @@ class ExtLogin extends External
      * @var string[] 密码登录允许作为账号的字段
      */
     public $enable_username = ['account', 'mobile', 'email'];
+
+    /**
+     * 检查短信验证码
+     * @param string $mobile 手机号
+     * @param string|int $code 验证码
+     * @return bool 需要返回bool值
+     */
+    public function checkSmsCode($mobile, $code)
+    {
+//        if (验证码正确) {
+//            return true;
+//        }else{
+//            return false;
+//        }
+
+        throw new Exception('没有检查验证码');
+    }
+
 
     /**
      * 返回 `user` 表名称
@@ -76,29 +95,37 @@ class ExtLogin extends External
      * @param int $max_login_fail_num 最大失败次数
      * @return bool
      */
-    public function maxLoginFailHandle($model,$type, $max_login_fail_num)
+    public function maxLoginFailHandle($model, $type, $max_login_fail_num)
     {
-        return "连续登录失败超过{$max_login_fail_num}次，请稍后再试";
+        return "连续登录失败超过{$max_login_fail_num}次，禁止登录";
     }
 
     /**
      * 登录失败的处理函数
      * 返回值作为错误信息处理
      * @param ServiceModel $model
+     * @param int $num 失败次数
      * @param int $type 1 密码登录 2手机号登录
-     * @param $tag int 失败的原因
+     * @param int $tag 失败的原因
      *                  -1 用户不存在
      *                  -2 密码或验证码错误
-     *                  -3 非正常用户(state != 1)
      * @return bool
      */
-    public function loginFailHandle($model,$type, $tag)
+    public function loginFailHandle($model, $num, $type, $tag)
     {
-        if ($tag == -3) {
-            return '用户禁止登录';
-        }else{
+         if ($tag == -1) {
+             if ($this->max_login_fail_num > 0) {
+                 return "用户未注册,连续试错{$this->max_login_fail_num}次将被锁定IP";
+             }else{
+                 return '用户名密码错误';
+             }
+        } else {
             if ($type == 1) {
-                return '用户名密码错误';
+                if ($this->max_login_fail_num > 0) {
+                    return "用户名密码错误{$num}次，连续错误{$this->max_login_fail_num}次将被禁止登录";
+                } else {
+                    return '用户名密码错误';
+                }
             } else {
                 return '手机号验证码错误';
             }
@@ -114,7 +141,7 @@ class ExtLogin extends External
      * @param array $user 用户信息
      * @return mixed
      */
-    public function loginSuccessHandle($model,$type, array $user)
+    public function loginSuccessHandle($model, $type, array $user)
     {
         $key = file_get_contents(APP_PATH . '/libs/rsa-private-key.pem');
         $time = time();
@@ -142,18 +169,4 @@ class ExtLogin extends External
         }
         return $ip;
     }
-
-    /**
-     * 手机号登录才需要
-     * 检查验证码
-     * 默认作为阿里云短信验证码校验
-     * @param string $mobile 手机号
-     * @param string $code 验证码
-     * @return bool
-     */
-    public function validateMsgCode($mobile, $code)
-    {
-       return true;
-    }
-
 }
